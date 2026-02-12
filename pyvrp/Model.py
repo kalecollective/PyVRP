@@ -220,6 +220,7 @@ class Model:
         group: ClientGroup | None = None,
         *,
         name: str = "",
+        elevation: int = 0,
     ) -> Client:
         """
         Adds a client with the given attributes to the model. Returns the
@@ -257,6 +258,7 @@ class Model:
             required=required,
             group=group_idx,
             name=name,
+            elevation=elevation,
         )
 
         if group_idx is not None:
@@ -286,6 +288,7 @@ class Model:
         service_duration: int = 0,
         *,
         name: str = "",
+        elevation: int = 0,
     ) -> Depot:
         """
         Adds a depot with the given attributes to the model. Returns the
@@ -298,6 +301,7 @@ class Model:
             tw_late=tw_late,
             service_duration=service_duration,
             name=name,
+            elevation=elevation,
         )
 
         self._depots.append(depot)
@@ -373,6 +377,7 @@ class Model:
         max_reloads: int = np.iinfo(np.uint64).max,
         max_overtime: int = 0,
         unit_overtime_cost: int = 0,
+        unit_elevation_cost: int = 0,
         *,
         name: str = "",
     ) -> VehicleType:
@@ -444,6 +449,7 @@ class Model:
             max_reloads=max_reloads,
             max_overtime=max_overtime,
             unit_overtime_cost=unit_overtime_cost,
+            unit_elevation_cost=unit_elevation_cost,
             name=name,
         )
 

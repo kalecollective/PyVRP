@@ -20,6 +20,7 @@ concept CostEvaluatable = requires(T arg) {
     { arg.distanceCost() } -> std::same_as<Cost>;
     { arg.durationCost() } -> std::same_as<Cost>;
     { arg.fixedVehicleCost() } -> std::same_as<Cost>;
+    { arg.elevationCost() } -> std::same_as<Cost>;
     { arg.excessLoad() } -> std::convertible_to<std::vector<Load>>;
     { arg.excessDistance() } -> std::same_as<Distance>;
     { arg.timeWarp() } -> std::same_as<Duration>;
@@ -247,6 +248,7 @@ Cost CostEvaluator::penalisedCost(T const &arg) const
     // Standard objective plus infeasibility-related penalty terms.
     auto const cost
         = arg.distanceCost() + arg.durationCost() + arg.fixedVehicleCost()
+          + arg.elevationCost()
           + excessLoadPenalties(arg.excessLoad()) + twPenalty(arg.timeWarp())
           + distPenalty(arg.excessDistance(), 0);
 
@@ -278,6 +280,8 @@ bool CostEvaluator::deltaCost(Cost &out, T<Args...> const &proposal) const
 
         out -= route->durationCost();
         out -= twPenalty(route->timeWarp());
+
+        out -= route->elevationCost();
     }
 
     if (route->hasDistanceCost())
@@ -304,6 +308,8 @@ bool CostEvaluator::deltaCost(Cost &out, T<Args...> const &proposal) const
         out += twPenalty(timeWarp);
     }
 
+    out += proposal.elevationCost();
+
     return true;
 }
 
@@ -328,6 +334,8 @@ bool CostEvaluator::deltaCost(Cost &out,
 
         out -= uRoute->durationCost();
         out -= twPenalty(uRoute->timeWarp());
+
+        out -= uRoute->elevationCost();
     }
 
     auto const *vRoute = vProposal.route();
@@ -340,6 +348,8 @@ bool CostEvaluator::deltaCost(Cost &out,
 
         out -= vRoute->durationCost();
         out -= twPenalty(vRoute->timeWarp());
+
+        out -= vRoute->elevationCost();
     }
 
     if (uRoute->hasDistanceCost())
@@ -393,6 +403,9 @@ bool CostEvaluator::deltaCost(Cost &out,
         out += cost;
         out += twPenalty(timeWarp);
     }
+
+    out += uProposal.elevationCost();
+    out += vProposal.elevationCost();
 
     return true;
 }

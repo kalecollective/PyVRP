@@ -157,6 +157,8 @@ public:
      *     Indicates membership of the given client group, if any.
      * name
      *     Free-form name field for this client.
+     * elevation
+     *     Elevation of this client location in meters. Default 0.
      */
     struct Client
     {
@@ -172,6 +174,7 @@ public:
         bool const required;         // Must client be in solution?
         std::optional<size_t> const group;  // Optional client group membership
         char const *name;                   // Client name (for reference)
+        Distance const elevation;           // Elevation in meters
 
         Client(Coordinate x,
                Coordinate y,
@@ -184,7 +187,8 @@ public:
                Cost prize = 0,
                bool required = true,
                std::optional<size_t> group = std::nullopt,
-               std::string name = "");
+               std::string name = "",
+               Distance elevation = 0);
 
         bool operator==(Client const &other) const;
 
@@ -323,6 +327,8 @@ public:
      *     a trip.
      * name
      *     Free-form name field for this depot.
+     * elevation
+     *     Elevation of this depot location in meters. Default 0.
      */
     struct Depot
     {
@@ -332,13 +338,15 @@ public:
         Duration const twEarly;  // Depot opening time
         Duration const twLate;   // Depot closing time
         char const *name;        // Depot name (for reference)
+        Distance const elevation;  // Elevation in meters
 
         Depot(Coordinate x,
               Coordinate y,
               Duration twEarly = 0,
               Duration twLate = std::numeric_limits<Duration>::max(),
               Duration serviceDuration = 0,
-              std::string name = "");
+              std::string name = "",
+              Distance elevation = 0);
 
         bool operator==(Depot const &other) const;
 
@@ -508,6 +516,7 @@ public:
         size_t const maxReloads;                 // Maximum number of reloads
         Duration const maxOvertime;              // Maximum allowed overtime
         Cost const unitOvertimeCost;             // Cost per unit of overtime
+        Cost const unitElevationCost;            // Cost per unit of elevation
         Duration const maxDuration;  // Maximum route duration, incl. overtime
         char const *name;            // Type name (for reference)
 
@@ -530,6 +539,7 @@ public:
                     size_t maxReloads = std::numeric_limits<size_t>::max(),
                     Duration maxOvertime = 0,
                     Cost unitOvertimeCost = 0,
+                    Cost unitElevationCost = 0,
                     std::string name = "");
 
         bool operator==(VehicleType const &other) const;
@@ -564,6 +574,7 @@ public:
                             std::optional<size_t> maxReloads,
                             std::optional<Duration> maxOvertime,
                             std::optional<Cost> unitOvertimeCost,
+                            std::optional<Cost> unitElevationCost,
                             std::optional<std::string> name) const;
 
         /**
@@ -762,6 +773,24 @@ public:
      * Number of load dimensions in this problem instance.
      */
     [[nodiscard]] size_t numLoadDimensions() const;
+
+    /**
+     * Computes the elevation gain from location ``from`` to location ``to``.
+     * Only positive gains are counted; downhill travel returns 0.
+     *
+     * Parameters
+     * ----------
+     * from
+     *     Index of the starting location.
+     * to
+     *     Index of the destination location.
+     *
+     * Returns
+     * -------
+     * Distance
+     *     The elevation gain in meters, or 0 if going downhill or flat.
+     */
+    [[nodiscard]] Distance elevationGain(size_t from, size_t to) const;
 
     /**
      * Returns a new ProblemData instance with the same data as this instance,

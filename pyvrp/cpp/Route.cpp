@@ -254,6 +254,66 @@ Route::Route(ProblemData const &data, Trips trips, size_t vehType)
         }
     }
 
+    // Elevation cost computation: iterate through all trips and arcs
+    elevationCost_ = 0;
+    for (size_t tripIdx = 0; tripIdx != trips_.size(); ++tripIdx)
+    {
+        auto const &trip = trips_[tripIdx];
+        if (trip.empty())
+            continue;
+
+        // Start with initial load and all deliveries for this trip
+        std::vector<Load> currentLoad(data.numLoadDimensions());
+        for (size_t dim = 0; dim != data.numLoadDimensions(); ++dim)
+        {
+            // Start with vehicle's initial load (if first trip)
+            if (tripIdx == 0)
+                currentLoad[dim] = vehData.initialLoad[dim];
+            else
+                currentLoad[dim] = 0;
+
+            // Add all deliveries that will be made in this trip
+            currentLoad[dim] += trip.delivery()[dim];
+            // Note: pickups are added as we encounter them
+        }
+
+        // Arc from start depot to first client
+        size_t from = trip.startDepot();
+        for (size_t idx = 0; idx != trip.size(); ++idx)
+        {
+            size_t to = trip[idx];
+
+            // Compute total load (sum across all dimensions)
+            Load totalLoad = 0;
+            for (auto const &load : currentLoad)
+                totalLoad += load;
+
+            // Add elevation cost for this arc
+            auto const elevGain = data.elevationGain(from, to);
+            elevationCost_ += totalLoad.get() * elevGain.get();
+
+            // Update load after visiting client
+            ProblemData::Client const &clientData = data.location(to);
+            for (size_t dim = 0; dim != currentLoad.size(); ++dim)
+            {
+                currentLoad[dim] -= clientData.delivery[dim];
+                currentLoad[dim] += clientData.pickup[dim];
+            }
+
+            from = to;
+        }
+
+        // Arc from last client to end depot
+        Load totalLoad = 0;
+        for (auto const &load : currentLoad)
+            totalLoad += load;
+        auto const elevGain = data.elevationGain(from, trip.endDepot());
+        elevationCost_ += totalLoad.get() * elevGain.get();
+    }
+
+    // Weight elevation cost by vehicle type's unit elevation cost
+    elevationCost_ = vehData.unitElevationCost * static_cast<Cost>(elevationCost_);
+
     // Duration statistics. We iterate in reverse, that is, from the last to
     // the first visit.
     auto const &durations = data.durationMatrix(vehData.profile);
@@ -313,6 +373,7 @@ Route::Route(Trips trips,
              Duration startTime,
              Duration slack,
              Cost prizes,
+             Cost elevationCost,
              std::pair<Coordinate, Coordinate> centroid,
              size_t vehicleType,
              size_t startDepot,
@@ -335,6 +396,7 @@ Route::Route(Trips trips,
       startTime_(startTime),
       slack_(slack),
       prizes_(prizes),
+      elevationCost_(elevationCost),
       centroid_(centroid),
       vehicleType_(vehicleType),
       startDepot_(startDepot),
@@ -420,6 +482,8 @@ Duration Route::slack() const { return slack_; }
 Duration Route::releaseTime() const { return trips_[0].releaseTime(); }
 
 Cost Route::prizes() const { return prizes_; }
+
+Cost Route::elevationCost() const { return elevationCost_; }
 
 std::pair<Coordinate, Coordinate> const &Route::centroid() const
 {

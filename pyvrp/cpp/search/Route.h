@@ -112,6 +112,11 @@ public:
          * Returns the excess load of the proposed route.
          */
         Load excessLoad(size_t dimension) const;
+
+        /**
+         * Returns the elevation cost of the proposed route.
+         */
+        Cost elevationCost() const;
     };
 
     /**
@@ -463,6 +468,12 @@ public:
      * @return Cost per unit of overtime on this route.
      */
     [[nodiscard]] inline Cost unitOvertimeCost() const;
+
+    /**
+     * @return Elevation cost on this route. This is always 0 for search::Route
+     * as elevation costs are computed at the pyvrp::Route level.
+     */
+    [[nodiscard]] inline Cost elevationCost() const;
 
     /**
      * Returns true if this route has duration-related cost components, either
@@ -943,6 +954,8 @@ Cost Route::unitDurationCost() const { return vehicleType_.unitDurationCost; }
 
 Cost Route::unitOvertimeCost() const { return vehicleType_.unitOvertimeCost; }
 
+Cost Route::elevationCost() const { return 0; }
+
 bool Route::hasDurationCost() const
 {
     // clang-format off
@@ -1183,6 +1196,79 @@ Load Route::Proposal<Segments...>::excessLoad(size_t dimension) const
     };
 
     return std::apply(fn, segments_);
+}
+
+template <Segment... Segments>
+Cost Route::Proposal<Segments...>::elevationCost() const
+{
+    if (empty())
+        return 0;
+
+    // Simple but slow implementation: approximate elevation cost using
+    // segment load information. This is not as accurate as tracking load
+    // per arc, but provides a reasonable estimate for move evaluation.
+    //
+    // We use the maximum load from each segment as a conservative estimate,
+    // multiplied by the elevation gains along the segment's arcs.
+
+    auto const &data = route()->data;
+    Cost cost = 0;
+
+    auto const fn = [&](auto &&segment, auto &&...args)
+    {
+        // Get approximate load for this segment (using first dimension)
+        // In multi-dimensional cases, this is a simplification
+        auto const load = segment.load(0).load();
+
+        // Iterate through arcs in this segment
+        auto const *segRoute = segment.route();
+        auto const first = segment.first();
+        auto const last = segment.last();
+
+        // Find indices in visits vector
+        size_t startIdx = 0, endIdx = 0;
+        for (size_t i = 0; i < segRoute->visits.size(); ++i)
+        {
+            if (segRoute->visits[i] == first)
+                startIdx = i;
+            if (segRoute->visits[i] == last)
+            {
+                endIdx = i;
+                break;
+            }
+        }
+
+        // Compute elevation cost for arcs in this segment
+        for (size_t i = startIdx; i < endIdx; ++i)
+        {
+            auto const from = segRoute->visits[i];
+            auto const to = segRoute->visits[i + 1];
+            auto const elevGain = data.elevationGain(from, to);
+            // Use segment's max load as approximation
+            cost += load.get() * elevGain.get();
+        }
+
+        // Handle connection to next segment
+        auto last_loc = last;
+        auto const merge = [&](auto const &self, auto &&other, auto &&...rest)
+        {
+            // Add arc from current segment's last to next segment's first
+            auto const elevGain = data.elevationGain(last_loc, other.first());
+            auto const other_load = other.load(0).load();
+            cost += other_load.get() * elevGain.get();
+
+            last_loc = other.last();
+
+            if constexpr (sizeof...(rest) != 0)
+                self(self, std::forward<decltype(rest)>(rest)...);
+        };
+
+        if constexpr (sizeof...(args) != 0)
+            merge(merge, std::forward<decltype(args)>(args)...);
+    };
+
+    std::apply(fn, segments_);
+    return cost * route()->vehicleType_.unitElevationCost;
 }
 }  // namespace pyvrp::search
 

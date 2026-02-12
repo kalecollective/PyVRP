@@ -57,6 +57,7 @@ class Solution
     Cost fixedVehicleCost_ = 0;     // Fixed cost of all used vehicles
     Cost prizes_ = 0;               // Total collected prize value
     Cost uncollectedPrizes_ = 0;    // Total uncollected prize value
+    Cost elevationCost_ = 0;        // Total elevation penalty cost
     Duration timeWarp_ = 0;         // Total time warp over all routes
     bool isGroupFeas_ = true;       // Is feasible w.r.t. client groups?
 
@@ -219,6 +220,11 @@ public:
      * Total prize value of all clients not visited in this solution.
      */
     [[nodiscard]] Cost uncollectedPrizes() const;
+
+    /**
+     * Returns the total elevation cost over all routes in this solution.
+     */
+    [[nodiscard]] Cost elevationCost() const;
 
     /**
      * Returns the total time warp load over all routes.
