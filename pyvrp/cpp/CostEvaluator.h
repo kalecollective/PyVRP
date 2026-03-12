@@ -230,6 +230,8 @@ bool CostEvaluator::deltaCost(Cost &out, T<Args...> const &proposal) const
 
         out -= route->durationCost();
         out -= twPenalty(route->timeWarp());
+
+        out -= route->elevationCost();
     }
 
     if (route->hasDistanceCost())
@@ -256,6 +258,8 @@ bool CostEvaluator::deltaCost(Cost &out, T<Args...> const &proposal) const
         out += twPenalty(timeWarp);
     }
 
+    out += proposal.elevationCost();
+
     return true;
 }
 
@@ -280,6 +284,8 @@ bool CostEvaluator::deltaCost(Cost &out,
 
         out -= uRoute->durationCost();
         out -= twPenalty(uRoute->timeWarp());
+
+        out -= uRoute->elevationCost();
     }
 
     auto const *vRoute = vProposal.route();
@@ -292,6 +298,8 @@ bool CostEvaluator::deltaCost(Cost &out,
 
         out -= vRoute->durationCost();
         out -= twPenalty(vRoute->timeWarp());
+
+        out -= vRoute->elevationCost();
     }
 
     if (uRoute->hasDistanceCost())
@@ -345,6 +353,9 @@ bool CostEvaluator::deltaCost(Cost &out,
         out += cost;
         out += twPenalty(timeWarp);
     }
+
+    out += uProposal.elevationCost();
+    out += vProposal.elevationCost();
 
     return true;
 }

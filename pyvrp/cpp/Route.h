@@ -133,6 +133,7 @@ private:
     Duration slack_ = 0;            // Total time slack on this route
     Cost fixedVehicleCost_ = 0;     // Fixed cost of vehicle used on this route
     Cost prizes_ = 0;               // Total value of prizes on this route
+    Cost elevationCost_ = 0;        // Total elevation penalty cost
 
     VehicleType vehicleType_;  // Type of vehicle
     Depot startDepot_;         // Assigned start depot
@@ -298,6 +299,14 @@ public:
     [[nodiscard]] Cost prizes() const;
 
     /**
+     * Total elevation cost on this route.
+     *
+     * Elevation cost is computed as the sum over all arcs of:
+     *   load_at_arc × elevation_gain × unit_elevation_cost
+     */
+    [[nodiscard]] Cost elevationCost() const;
+
+    /**
      * Index of the type of vehicle used on this route.
      */
     [[nodiscard]] VehicleType vehicleType() const;
@@ -364,6 +373,7 @@ public:
           Duration startTime,
           Duration slack,
           Cost prizes,
+          Cost elevationCost,
           VehicleType vehicleType,
           Depot startDepot,
           Depot endDepot,

@@ -261,6 +261,64 @@ Route::Route(ProblemData const &data, Trips trips, size_t vehType)
         }
     }
 
+    // Elevation cost computation: iterate through all trips and arcs
+    elevationCost_ = 0;
+    for (size_t tripIdx = 0; tripIdx != trips_.size(); ++tripIdx)
+    {
+        auto const &trip = trips_[tripIdx];
+        if (trip.empty())
+            continue;
+
+        // Start with initial load and all deliveries for this trip
+        std::vector<Load> currentLoad(data.numLoadDimensions());
+        for (size_t dim = 0; dim != data.numLoadDimensions(); ++dim)
+        {
+            // Start with vehicle's initial load (if first trip)
+            if (tripIdx == 0)
+                currentLoad[dim] = vehData.initialLoad[dim];
+            else
+                currentLoad[dim] = 0;
+
+            // Add all deliveries that will be made in this trip
+            currentLoad[dim] += trip.delivery()[dim];
+            // Note: pickups are added as we encounter them
+        }
+
+        // Arc from start depot to first client
+        size_t from = trip.startDepot();
+        for (auto const [_, client] : trip)
+        {
+            // Compute total load (sum across all dimensions)
+            Load totalLoad = 0;
+            for (auto const &load : currentLoad)
+                totalLoad += load;
+
+            // Add elevation cost for this arc
+            auto const elevGain = data.elevationGain(from, client);
+            elevationCost_ += totalLoad.get() * elevGain.get();
+
+            // Update load after visiting client
+            auto const &clientData = data.client(client - data.numDepots());
+            for (size_t dim = 0; dim != currentLoad.size(); ++dim)
+            {
+                currentLoad[dim] -= clientData.delivery[dim];
+                currentLoad[dim] += clientData.pickup[dim];
+            }
+
+            from = client;
+        }
+
+        // Arc from last client to end depot
+        Load totalLoad = 0;
+        for (auto const &load : currentLoad)
+            totalLoad += load;
+        auto const elevGain = data.elevationGain(from, trip.endDepot());
+        elevationCost_ += totalLoad.get() * elevGain.get();
+    }
+
+    // Weight elevation cost by vehicle type's unit elevation cost
+    elevationCost_ = vehData.unitElevationCost * static_cast<Cost>(elevationCost_);
+
     // Duration statistics. We iterate in reverse, that is, from the last to
     // the first visit.
     auto const &durations = data.durationMatrix(vehData.profile);
@@ -320,6 +378,7 @@ Route::Route(Trips trips,
              Duration startTime,
              Duration slack,
              Cost prizes,
+             Cost elevationCost,
              size_t vehicleType,
              size_t startDepot,
              size_t endDepot,
@@ -341,6 +400,7 @@ Route::Route(Trips trips,
       startTime_(startTime),
       slack_(slack),
       prizes_(prizes),
+      elevationCost_(elevationCost),
       vehicleType_(vehicleType),
       startDepot_(startDepot),
       endDepot_(endDepot)
@@ -428,6 +488,8 @@ Duration Route::releaseTime() const { return trips_[0].releaseTime(); }
 
 Cost Route::prizes() const { return prizes_; }
 
+Cost Route::elevationCost() const { return elevationCost_; }
+
 size_t Route::vehicleType() const { return vehicleType_; }
 
 size_t Route::startDepot() const { return startDepot_; }
@@ -472,6 +534,7 @@ template <> Cost pyvrp::CostEvaluator::penalisedCost(Route const &route) const
     return route.distanceCost()
          + route.durationCost()
          + route.fixedVehicleCost()
+         + route.elevationCost()
          + excessLoadPenalties(route.excessLoad())
          + twPenalty(route.timeWarp())
          + distPenalty(route.excessDistance(), 0);

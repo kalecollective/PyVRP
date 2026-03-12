@@ -35,6 +35,7 @@ void Solution::evaluate(ProblemData const &data)
         durationCost_ += route.durationCost();
         excessDistance_ += route.excessDistance();
         timeWarp_ += route.timeWarp();
+        elevationCost_ += route.elevationCost();
         fixedVehicleCost_ += route.fixedVehicleCost();
 
         auto const &excessLoad = route.excessLoad();
@@ -111,6 +112,8 @@ Cost Solution::fixedVehicleCost() const { return fixedVehicleCost_; }
 Cost Solution::prizes() const { return prizes_; }
 
 Cost Solution::uncollectedPrizes() const { return uncollectedPrizes_; }
+
+Cost Solution::elevationCost() const { return elevationCost_; }
 
 Duration Solution::timeWarp() const { return timeWarp_; }
 

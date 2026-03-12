@@ -64,7 +64,8 @@ ProblemData::Client::Client(Coordinate x,
                             Cost prize,
                             bool required,
                             std::optional<size_t> group,
-                            std::string name)
+                            std::string name,
+                            Distance elevation)
     : x(x),
       y(y),
       serviceDuration(serviceDuration),
@@ -76,7 +77,8 @@ ProblemData::Client::Client(Coordinate x,
       prize(prize),
       required(required),
       group(group),
-      name(duplicate(name.data()))
+      name(duplicate(name.data())),
+      elevation(elevation)
 {
     assert(delivery.size() == pickup.size());
 
@@ -117,7 +119,8 @@ ProblemData::Client::Client(Client const &client)
       prize(client.prize),
       required(client.required),
       group(client.group),
-      name(duplicate(client.name))
+      name(duplicate(client.name)),
+      elevation(client.elevation)
 {
 }
 
@@ -133,7 +136,8 @@ ProblemData::Client::Client(Client &&client)
       prize(client.prize),
       required(client.required),
       group(client.group),
-      name(client.name)  // we can steal
+      name(client.name),  // we can steal
+      elevation(client.elevation)
 {
     client.name = nullptr;  // stolen
 }
@@ -154,7 +158,8 @@ bool ProblemData::Client::operator==(Client const &other) const
         && prize == other.prize
         && required == other.required
         && group == other.group
-        && std::strcmp(name, other.name) == 0;
+        && std::strcmp(name, other.name) == 0
+        && elevation == other.elevation;
     // clang-format on
 }
 
@@ -228,13 +233,15 @@ ProblemData::Depot::Depot(Coordinate x,
                           Duration twEarly,
                           Duration twLate,
                           Duration serviceDuration,
-                          std::string name)
+                          std::string name,
+                          Distance elevation)
     : x(x),
       y(y),
       serviceDuration(serviceDuration),
       twEarly(twEarly),
       twLate(twLate),
-      name(duplicate(name.data()))
+      name(duplicate(name.data())),
+      elevation(elevation)
 {
     if (serviceDuration < 0)
         throw std::invalid_argument("service_duration must be >= 0.");
@@ -252,7 +259,8 @@ ProblemData::Depot::Depot(Depot const &depot)
       serviceDuration(depot.serviceDuration),
       twEarly(depot.twEarly),
       twLate(depot.twLate),
-      name(duplicate(depot.name))
+      name(duplicate(depot.name)),
+      elevation(depot.elevation)
 {
 }
 
@@ -262,7 +270,8 @@ ProblemData::Depot::Depot(Depot &&depot)
       serviceDuration(depot.serviceDuration),
       twEarly(depot.twEarly),
       twLate(depot.twLate),
-      name(depot.name)  // we can steal
+      name(depot.name),  // we can steal
+      elevation(depot.elevation)
 {
     depot.name = nullptr;  // stolen
 }
@@ -277,7 +286,8 @@ bool ProblemData::Depot::operator==(Depot const &other) const
         && twEarly == other.twEarly
         && twLate == other.twLate
         && serviceDuration == other.serviceDuration
-        && std::strcmp(name, other.name) == 0;
+        && std::strcmp(name, other.name) == 0
+        && elevation == other.elevation;
     // clang-format on
 }
 
@@ -299,6 +309,7 @@ ProblemData::VehicleType::VehicleType(size_t numAvailable,
                                       size_t maxReloads,
                                       Duration maxOvertime,
                                       Cost unitOvertimeCost,
+                                      Cost unitElevationCost,
                                       std::string name)
     : numAvailable(numAvailable),
       startDepot(startDepot),
@@ -318,6 +329,7 @@ ProblemData::VehicleType::VehicleType(size_t numAvailable,
       maxReloads(maxReloads),
       maxOvertime(maxOvertime),
       unitOvertimeCost(unitOvertimeCost),
+      unitElevationCost(unitElevationCost),
       // We need to check >= 0 here to avoid overflow. If the arguments are
       // negative the validation checks further below will raise, so it doesn't
       // matter what we set as long as we get to those checks.
@@ -370,6 +382,9 @@ ProblemData::VehicleType::VehicleType(size_t numAvailable,
 
     if (unitOvertimeCost < 0)
         throw std::invalid_argument("unit_overtime_cost must be >= 0.");
+
+    if (unitElevationCost < 0)
+        throw std::invalid_argument("unit_elevation_cost must be >= 0.");
 }
 
 ProblemData::VehicleType::VehicleType(VehicleType const &vehicleType)
@@ -391,6 +406,7 @@ ProblemData::VehicleType::VehicleType(VehicleType const &vehicleType)
       maxReloads(vehicleType.maxReloads),
       maxOvertime(vehicleType.maxOvertime),
       unitOvertimeCost(vehicleType.unitOvertimeCost),
+      unitElevationCost(vehicleType.unitElevationCost),
       maxDuration(vehicleType.maxDuration),
       name(duplicate(vehicleType.name))
 {
@@ -415,6 +431,7 @@ ProblemData::VehicleType::VehicleType(VehicleType &&vehicleType)
       maxReloads(vehicleType.maxReloads),
       maxOvertime(vehicleType.maxOvertime),
       unitOvertimeCost(vehicleType.unitOvertimeCost),
+      unitElevationCost(vehicleType.unitElevationCost),
       maxDuration(vehicleType.maxDuration),
       name(vehicleType.name)  // we can steal
 {
@@ -442,6 +459,7 @@ ProblemData::VehicleType ProblemData::VehicleType::replace(
     std::optional<size_t> maxReloads,
     std::optional<Duration> maxOvertime,
     std::optional<Cost> unitOvertimeCost,
+    std::optional<Cost> unitElevationCost,
     std::optional<std::string> name) const
 {
     return {numAvailable.value_or(this->numAvailable),
@@ -462,6 +480,7 @@ ProblemData::VehicleType ProblemData::VehicleType::replace(
             maxReloads.value_or(this->maxReloads),
             maxOvertime.value_or(this->maxOvertime),
             unitOvertimeCost.value_or(this->unitOvertimeCost),
+            unitElevationCost.value_or(this->unitElevationCost),
             name.value_or(this->name)};
 }
 
@@ -493,6 +512,7 @@ bool ProblemData::VehicleType::operator==(VehicleType const &other) const
         && maxReloads == other.maxReloads
         && maxOvertime == other.maxOvertime
         && unitOvertimeCost == other.unitOvertimeCost
+        && unitElevationCost == other.unitElevationCost
         && std::strcmp(name, other.name) == 0;
     // clang-format on
 }
@@ -559,6 +579,20 @@ size_t ProblemData::numProfiles() const
 }
 
 size_t ProblemData::numLoadDimensions() const { return numLoadDimensions_; }
+
+Distance ProblemData::elevationGain(size_t from, size_t to) const
+{
+    assert(from < numLocations() && to < numLocations());
+
+    Distance fromElev = from < numDepots() ? depots_[from].elevation
+                                            : clients_[from - numDepots()].elevation;
+
+    Distance toElev = to < numDepots() ? depots_[to].elevation
+                                        : clients_[to - numDepots()].elevation;
+
+    // Only positive elevation gains contribute to cost
+    return std::max<Distance>(toElev - fromElev, 0);
+}
 
 void ProblemData::validate() const
 {
